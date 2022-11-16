@@ -18,20 +18,47 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 async function run(){
     try{
         const appointmentOptionCollection=client.db("doctorsPortal").collection('apoinntmentOptions')
+        const bookingCollection=client.db("doctorsPortal").collection('bookings')
         
+        // Use aggregate to query multiple collection and then merge data 
         app.get('/appointmentOptions',async (req,res)=>{
-            const query={}
-            const cursor =appointmentOptionCollection.find(query)
-            const options =await cursor.toArray()
+            const date=req.query.date;
+            const query={};
+            const options =await appointmentOptionCollection.find(query).toArray();
+          
+            // get the bookings of the provided date  
+            const bookingQuery={appointmentDate: date};
+            const alreadyBooked=await bookingCollection.find(bookingQuery).toArray();
+          
+            // code carefully :D
+            options.forEach(option =>{
+             const optionBooked=alreadyBooked.filter(book => book.treatment === option.name)
+             const bookSlots = optionBooked.map(book => book.slot)
+             const remainingSlots=option.slots.filter(slot => !bookSlots.includes(slot))
+             option.slots = remainingSlots 
+            })
             res.send(options)
+        });
+
+        /**
+         *API Naming Convention
+         * app.get('/bookings')
+         * app.get('/bookings/:id')
+         * app.post('/bookings')
+         * app.patch('/bookings/:id')
+         * app.delete('/bookings/:id')
+         *  
+         */ 
+        app.get('/bookings',async (req,res)=>{
+            
+        })
+         
+        app.post('/bookings',async(req,res)=>{
+            const booking=req.body
+            const result =await bookingCollection.insertOne(booking)
+            res.send(result)
         })
 
-        app.get('/appointmentOptions/:id',async (req,res)=>{
-            const id =req.params.id
-            const query ={_id: ObjectId(id)}
-            const options= await appointmentOptionCollection.findOne(query)
-            res.send(options)
-        })
     }
     finally{
 
