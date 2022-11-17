@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app =express();
+const jwt =require('jsonwebtoken');
 const port = process.env.PORT || 5000
 
 // middleware
@@ -17,8 +18,9 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 
 async function run(){
     try{
-        const appointmentOptionCollection=client.db("doctorsPortal").collection('apoinntmentOptions')
-        const bookingCollection=client.db("doctorsPortal").collection('bookings')
+        const appointmentOptionCollection=client.db("doctorsPortal").collection('apoinntmentOptions');
+        const bookingCollection=client.db("doctorsPortal").collection('bookings');
+        const usersCollection=client.db("doctorsPortal").collection('users');
         
         // Use aggregate to query multiple collection and then merge data 
         app.get('/appointmentOptions',async (req,res)=>{
@@ -50,14 +52,39 @@ async function run(){
          *  
          */ 
         app.get('/bookings',async (req,res)=>{
-            
+          const email =req.query.email
+          const query ={email : email}
+          const bookings=await bookingCollection.find(query).toArray()
+          res.send(bookings) 
         })
          
         app.post('/bookings',async(req,res)=>{
             const booking=req.body
+              
+            const query={
+                appointmentDate: booking.appointmentDate,
+                email: booking.email,
+                treatment: booking.treatment
+            }
+           
+            const alreadyBooked =await bookingCollection.find(query).toArray();
+            if(alreadyBooked.length){
+            const message = `You already have a booking on ${booking.appointmentDate}`
+            return res.send({acknowledged: false,message})
+            }
+
             const result =await bookingCollection.insertOne(booking)
             res.send(result)
-        })
+        });
+
+
+       app.post('/users',async (req,res)=>{
+        const user =req.body
+        console.log(user);
+        const result =await usersCollection.insertOne(user)
+        res.send(result)
+
+       })
 
     }
     finally{
