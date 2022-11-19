@@ -16,6 +16,8 @@ const uri = process.env.MONGODB_ACCESS_TOKEN;
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
+
+
 function jwtVerify(req,res,next){
   const authHeader=req.headers.authorization
   if(!authHeader){
@@ -37,6 +39,19 @@ async function run(){
         const usersCollection=client.db("doctorsPortal").collection('users');
         const doctorsCollection=client.db("doctorsPortal").collection('doctors');
         
+        // make sure you run verifyAdmin after verify jwt
+        const verifyAdmin= async(req,res,next)=>{
+            const decodedEmail =req.decoded
+            const query={email: decodedEmail}
+           const user =await usersCollection.findOne(query)
+           if(user?.role !== 'admin'){
+             return res.status(403).send({message:'Forbidden access'})
+           }
+          next();
+        }
+  
+
+
         // Use aggregate to query multiple collection and then merge data 
         app.get('/appointmentOptions',async (req,res)=>{
             const date=req.query.date;
@@ -134,14 +149,8 @@ async function run(){
 
        })
        
-       app.put('/users/admin/:id',jwtVerify, async(req,res)=>{
-        const decodedEmail =req.decoded
-         const query={email: decodedEmail}
-        const user =await usersCollection.findOne(query)
-        if(user.role !== 'admin'){
-          return res.status(403).send({message:'Forbidden access'})
-        }
-        
+       app.put('/users/admin/:id',jwtVerify,verifyAdmin, async(req,res)=>{
+       
         const id =req.params.id
         const filter ={_id: ObjectId(id)}
         const options ={upsert: true}
@@ -154,18 +163,18 @@ async function run(){
         res.send(result)    
        })
 
-       app.get('/doctors',async (req,res)=>{
+       app.get('/doctors',jwtVerify, async (req,res)=>{
         const query ={}
         const doctors =await doctorsCollection.find(query).toArray()
         res.send(doctors)
        })
-       app.post('/doctors',async(req,res)=>{
+       app.post('/doctors',jwtVerify, async(req,res)=>{
         const doctor =req.body
         console.log(doctor);
         const result =await doctorsCollection.insertOne(doctor)
         res.send(result)
        })
-       app.delete('/doctors/:id',async (req,res)=>{
+       app.delete('/doctors/:id',jwtVerify,async (req,res)=>{
         const id =req.params.id
         const filter = {_id: ObjectId(id)}
         const result = await doctorsCollection.deleteOne(filter)
